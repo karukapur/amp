@@ -1,0 +1,226 @@
+name,kind,stage,quant_bits,weight_bits,activation_bits,bias_bits,accumulator_bits,compute_dtype,scheme,granularity,quant_min,quant_max,scale,input_quantizer,parameter_count,notes
+input_quantizer,activation_quantizer,fixed,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.020787402400820273,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+conv1,weight,fixed,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,input_quantizer,9408,Quantized folded weights; bias and accumulation are FP32.
+bn1,batchnorm_folded,fixed,,,,,,float32,,,,,,,,Folded into conv1; no standalone inference operation.
+relu,activation_float,fixed,,,,,,float32,,,,,,,,FP32 ReLU output; quantized only at the next explicit quantizer.
+maxpool,pool_float,fixed,,,,,,float32,,,,,,,,
+layer1.0.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.025649219047366164,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.0.conv1,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.0.input_quantizer,4096,Quantized folded weights; bias and accumulation are FP32.
+layer1.0.bn1,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.0.conv1; no standalone inference operation.
+layer1.0.relu_after_conv1,activation_float,layer1,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer1.0.conv2.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.011745888417161355,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.0.conv2,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.0.conv2.input_quantizer,36864,Quantized folded weights; bias and accumulation are FP32.
+layer1.0.bn2,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.0.conv2; no standalone inference operation.
+layer1.0.relu_after_conv2,activation_float,layer1,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer1.0.conv3.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.016824217293206163,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.0.conv3,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.0.conv3.input_quantizer,16384,Quantized folded weights; bias and accumulation are FP32.
+layer1.0.bn3,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.0.conv3; no standalone inference operation.
+layer1.0.downsample.0,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.0.input_quantizer,16384,Quantized folded weights; bias and accumulation are FP32.
+layer1.0.downsample.1,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.0.downsample.0; no standalone inference operation.
+layer1.0.residual_add,addition_float,layer1,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer1.0.relu_out,activation_float,layer1,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer1.1.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.024126646086925597,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.1.conv1,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.1.input_quantizer,16384,Quantized folded weights; bias and accumulation are FP32.
+layer1.1.bn1,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.1.conv1; no standalone inference operation.
+layer1.1.relu_after_conv1,activation_float,layer1,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer1.1.conv2.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.010008193376496083,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.1.conv2,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.1.conv2.input_quantizer,36864,Quantized folded weights; bias and accumulation are FP32.
+layer1.1.bn2,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.1.conv2; no standalone inference operation.
+layer1.1.relu_after_conv2,activation_float,layer1,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer1.1.conv3.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.02097326564037894,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.1.conv3,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.1.conv3.input_quantizer,16384,Quantized folded weights; bias and accumulation are FP32.
+layer1.1.bn3,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.1.conv3; no standalone inference operation.
+layer1.1.residual_add,addition_float,layer1,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer1.1.relu_out,activation_float,layer1,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer1.2.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.03302686796413632,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.2.conv1,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.2.input_quantizer,16384,Quantized folded weights; bias and accumulation are FP32.
+layer1.2.bn1,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.2.conv1; no standalone inference operation.
+layer1.2.relu_after_conv1,activation_float,layer1,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer1.2.conv2.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.013884884165966605,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.2.conv2,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.2.conv2.input_quantizer,36864,Quantized folded weights; bias and accumulation are FP32.
+layer1.2.bn2,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.2.conv2; no standalone inference operation.
+layer1.2.relu_after_conv2,activation_float,layer1,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer1.2.conv3.input_quantizer,activation_quantizer,layer1,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.025295343924695114,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer1.2.conv3,weight,layer1,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer1.2.conv3.input_quantizer,16384,Quantized folded weights; bias and accumulation are FP32.
+layer1.2.bn3,batchnorm_folded,layer1,,,,,,float32,,,,,,,,Folded into layer1.2.conv3; no standalone inference operation.
+layer1.2.residual_add,addition_float,layer1,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer1.2.relu_out,activation_float,layer1,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer2.0.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.030249291517603114,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.0.conv1,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.0.input_quantizer,32768,Quantized folded weights; bias and accumulation are FP32.
+layer2.0.bn1,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.0.conv1; no standalone inference operation.
+layer2.0.relu_after_conv1,activation_float,layer2,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer2.0.conv2.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.025897596764752246,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.0.conv2,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.0.conv2.input_quantizer,147456,Quantized folded weights; bias and accumulation are FP32.
+layer2.0.bn2,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.0.conv2; no standalone inference operation.
+layer2.0.relu_after_conv2,activation_float,layer2,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer2.0.conv3.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.014288011498338594,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.0.conv3,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.0.conv3.input_quantizer,65536,Quantized folded weights; bias and accumulation are FP32.
+layer2.0.bn3,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.0.conv3; no standalone inference operation.
+layer2.0.downsample.0,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.0.input_quantizer,131072,Quantized folded weights; bias and accumulation are FP32.
+layer2.0.downsample.1,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.0.downsample.0; no standalone inference operation.
+layer2.0.residual_add,addition_float,layer2,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer2.0.relu_out,activation_float,layer2,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer2.1.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.020720102655606008,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.1.conv1,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.1.input_quantizer,65536,Quantized folded weights; bias and accumulation are FP32.
+layer2.1.bn1,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.1.conv1; no standalone inference operation.
+layer2.1.relu_after_conv1,activation_float,layer2,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer2.1.conv2.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.007791488189396896,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.1.conv2,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.1.conv2.input_quantizer,147456,Quantized folded weights; bias and accumulation are FP32.
+layer2.1.bn2,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.1.conv2; no standalone inference operation.
+layer2.1.relu_after_conv2,activation_float,layer2,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer2.1.conv3.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.015979473985086277,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.1.conv3,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.1.conv3.input_quantizer,65536,Quantized folded weights; bias and accumulation are FP32.
+layer2.1.bn3,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.1.conv3; no standalone inference operation.
+layer2.1.residual_add,addition_float,layer2,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer2.1.relu_out,activation_float,layer2,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer2.2.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.029031167818805364,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.2.conv1,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.2.input_quantizer,65536,Quantized folded weights; bias and accumulation are FP32.
+layer2.2.bn1,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.2.conv1; no standalone inference operation.
+layer2.2.relu_after_conv1,activation_float,layer2,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer2.2.conv2.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.013457159357746756,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.2.conv2,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.2.conv2.input_quantizer,147456,Quantized folded weights; bias and accumulation are FP32.
+layer2.2.bn2,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.2.conv2; no standalone inference operation.
+layer2.2.relu_after_conv2,activation_float,layer2,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer2.2.conv3.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.011361490084430364,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.2.conv3,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.2.conv3.input_quantizer,65536,Quantized folded weights; bias and accumulation are FP32.
+layer2.2.bn3,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.2.conv3; no standalone inference operation.
+layer2.2.residual_add,addition_float,layer2,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer2.2.relu_out,activation_float,layer2,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer2.3.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.03176998528908557,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.3.conv1,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.3.input_quantizer,65536,Quantized folded weights; bias and accumulation are FP32.
+layer2.3.bn1,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.3.conv1; no standalone inference operation.
+layer2.3.relu_after_conv1,activation_float,layer2,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer2.3.conv2.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.013908271714458315,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.3.conv2,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.3.conv2.input_quantizer,147456,Quantized folded weights; bias and accumulation are FP32.
+layer2.3.bn2,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.3.conv2; no standalone inference operation.
+layer2.3.relu_after_conv2,activation_float,layer2,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer2.3.conv3.input_quantizer,activation_quantizer,layer2,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.015760031272107223,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer2.3.conv3,weight,layer2,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer2.3.conv3.input_quantizer,65536,Quantized folded weights; bias and accumulation are FP32.
+layer2.3.bn3,batchnorm_folded,layer2,,,,,,float32,,,,,,,,Folded into layer2.3.conv3; no standalone inference operation.
+layer2.3.residual_add,addition_float,layer2,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer2.3.relu_out,activation_float,layer2,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer3.0.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.03246949789092297,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.0.conv1,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.0.input_quantizer,131072,Quantized folded weights; bias and accumulation are FP32.
+layer3.0.bn1,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.0.conv1; no standalone inference operation.
+layer3.0.relu_after_conv1,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.0.conv2.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.02341464373070424,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.0.conv2,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.0.conv2.input_quantizer,589824,Quantized folded weights; bias and accumulation are FP32.
+layer3.0.bn2,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.0.conv2; no standalone inference operation.
+layer3.0.relu_after_conv2,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.0.conv3.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.016547195554718258,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.0.conv3,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.0.conv3.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.0.bn3,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.0.conv3; no standalone inference operation.
+layer3.0.downsample.0,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.0.input_quantizer,524288,Quantized folded weights; bias and accumulation are FP32.
+layer3.0.downsample.1,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.0.downsample.0; no standalone inference operation.
+layer3.0.residual_add,addition_float,layer3,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer3.0.relu_out,activation_float,layer3,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer3.1.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.023952788255346105,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.1.conv1,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.1.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.1.bn1,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.1.conv1; no standalone inference operation.
+layer3.1.relu_after_conv1,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.1.conv2.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.020839313822468435,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.1.conv2,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.1.conv2.input_quantizer,589824,Quantized folded weights; bias and accumulation are FP32.
+layer3.1.bn2,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.1.conv2; no standalone inference operation.
+layer3.1.relu_after_conv2,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.1.conv3.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.015214207604175477,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.1.conv3,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.1.conv3.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.1.bn3,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.1.conv3; no standalone inference operation.
+layer3.1.residual_add,addition_float,layer3,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer3.1.relu_out,activation_float,layer3,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer3.2.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.03513192755030835,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.2.conv1,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.2.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.2.bn1,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.2.conv1; no standalone inference operation.
+layer3.2.relu_after_conv1,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.2.conv2.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.012523348875871794,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.2.conv2,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.2.conv2.input_quantizer,589824,Quantized folded weights; bias and accumulation are FP32.
+layer3.2.bn2,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.2.conv2; no standalone inference operation.
+layer3.2.relu_after_conv2,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.2.conv3.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.010735285563731756,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.2.conv3,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.2.conv3.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.2.bn3,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.2.conv3; no standalone inference operation.
+layer3.2.residual_add,addition_float,layer3,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer3.2.relu_out,activation_float,layer3,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer3.3.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.03238524038960615,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.3.conv1,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.3.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.3.bn1,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.3.conv1; no standalone inference operation.
+layer3.3.relu_after_conv1,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.3.conv2.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.019051234553179402,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.3.conv2,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.3.conv2.input_quantizer,589824,Quantized folded weights; bias and accumulation are FP32.
+layer3.3.bn2,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.3.conv2; no standalone inference operation.
+layer3.3.relu_after_conv2,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.3.conv3.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.012777580989627387,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.3.conv3,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.3.conv3.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.3.bn3,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.3.conv3; no standalone inference operation.
+layer3.3.residual_add,addition_float,layer3,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer3.3.relu_out,activation_float,layer3,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer3.4.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.038143724907101606,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.4.conv1,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.4.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.4.bn1,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.4.conv1; no standalone inference operation.
+layer3.4.relu_after_conv1,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.4.conv2.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.01666407510051577,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.4.conv2,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.4.conv2.input_quantizer,589824,Quantized folded weights; bias and accumulation are FP32.
+layer3.4.bn2,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.4.conv2; no standalone inference operation.
+layer3.4.relu_after_conv2,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.4.conv3.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.014980273922597329,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.4.conv3,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.4.conv3.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.4.bn3,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.4.conv3; no standalone inference operation.
+layer3.4.residual_add,addition_float,layer3,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer3.4.relu_out,activation_float,layer3,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer3.5.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.03805663266519862,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.5.conv1,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.5.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.5.bn1,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.5.conv1; no standalone inference operation.
+layer3.5.relu_after_conv1,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.5.conv2.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.019543236634862706,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.5.conv2,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.5.conv2.input_quantizer,589824,Quantized folded weights; bias and accumulation are FP32.
+layer3.5.bn2,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.5.conv2; no standalone inference operation.
+layer3.5.relu_after_conv2,activation_float,layer3,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer3.5.conv3.input_quantizer,activation_quantizer,layer3,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.02400733354523426,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer3.5.conv3,weight,layer3,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,layer3.5.conv3.input_quantizer,262144,Quantized folded weights; bias and accumulation are FP32.
+layer3.5.bn3,batchnorm_folded,layer3,,,,,,float32,,,,,,,,Folded into layer3.5.conv3; no standalone inference operation.
+layer3.5.residual_add,addition_float,layer3,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer3.5.relu_out,activation_float,layer3,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer4.0.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.034493971997358666,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.0.conv1,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.0.input_quantizer,524288,Quantized folded weights; bias and accumulation are FP32.
+layer4.0.bn1,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.0.conv1; no standalone inference operation.
+layer4.0.relu_after_conv1,activation_float,layer4,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer4.0.conv2.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.020908419541486607,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.0.conv2,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.0.conv2.input_quantizer,2359296,Quantized folded weights; bias and accumulation are FP32.
+layer4.0.bn2,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.0.conv2; no standalone inference operation.
+layer4.0.relu_after_conv2,activation_float,layer4,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer4.0.conv3.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.0236996628168061,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.0.conv3,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.0.conv3.input_quantizer,1048576,Quantized folded weights; bias and accumulation are FP32.
+layer4.0.bn3,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.0.conv3; no standalone inference operation.
+layer4.0.downsample.0,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.0.input_quantizer,2097152,Quantized folded weights; bias and accumulation are FP32.
+layer4.0.downsample.1,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.0.downsample.0; no standalone inference operation.
+layer4.0.residual_add,addition_float,layer4,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer4.0.relu_out,activation_float,layer4,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer4.1.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.11675171589288186,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.1.conv1,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.1.input_quantizer,1048576,Quantized folded weights; bias and accumulation are FP32.
+layer4.1.bn1,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.1.conv1; no standalone inference operation.
+layer4.1.relu_after_conv1,activation_float,layer4,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer4.1.conv2.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.025636798753513126,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.1.conv2,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.1.conv2.input_quantizer,2359296,Quantized folded weights; bias and accumulation are FP32.
+layer4.1.bn2,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.1.conv2; no standalone inference operation.
+layer4.1.relu_after_conv2,activation_float,layer4,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer4.1.conv3.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.014875044972877803,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.1.conv3,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.1.conv3.input_quantizer,1048576,Quantized folded weights; bias and accumulation are FP32.
+layer4.1.bn3,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.1.conv3; no standalone inference operation.
+layer4.1.residual_add,addition_float,layer4,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer4.1.relu_out,activation_float,layer4,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+layer4.2.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.13405517518051027,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.2.conv1,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.2.input_quantizer,1048576,Quantized folded weights; bias and accumulation are FP32.
+layer4.2.bn1,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.2.conv1; no standalone inference operation.
+layer4.2.relu_after_conv1,activation_float,layer4,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer4.2.conv2.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.03155320460402121,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.2.conv2,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.2.conv2.input_quantizer,2359296,Quantized folded weights; bias and accumulation are FP32.
+layer4.2.bn2,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.2.conv2; no standalone inference operation.
+layer4.2.relu_after_conv2,activation_float,layer4,,,,,,float32,,,,,,,,FP32 ReLU output; next convolution input has an explicit quantizer.
+layer4.2.conv3.input_quantizer,activation_quantizer,layer4,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.01882179140105961,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+layer4.2.conv3,weight,layer4,4,4,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-7,7,,layer4.2.conv3.input_quantizer,1048576,Quantized folded weights; bias and accumulation are FP32.
+layer4.2.bn3,batchnorm_folded,layer4,,,,,,float32,,,,,,,,Folded into layer4.2.conv3; no standalone inference operation.
+layer4.2.residual_add,addition_float,layer4,,,,,32,float32,,,,,,,,Shortcut shares the block input quantizer; residual addition itself is FP32.
+layer4.2.relu_out,activation_float,layer4,,,,,,float32,,,,,,,,FP32 output; quantized at the next block input or classifier input after pooling.
+avgpool,pool_float,fixed,,,,,,float32,,,,,,,,
+fc.input_quantizer,activation_quantizer,fixed,8,,8,,,float32,symmetric_signed_maxabs,per_tensor,-127,127,0.059573793035792556,,,"Round nearest, ties to even; fake quantize then dequantize to FP32; calibrated scale."
+fc,weight,fixed,8,8,8,32,32,float32,symmetric_signed_maxabs,per_output_channel,-127,127,,fc.input_quantizer,2048000,Quantized folded weights; bias and accumulation are FP32.
+fc.output,activation_float,fixed,,,,,,float32,,,,,,,,FP32 classification logits; no output quantizer.

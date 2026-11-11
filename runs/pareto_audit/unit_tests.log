@@ -1,0 +1,39 @@
+test_csv_covers_actual_quantizers_and_stage_assignments (test_resnet_runner.RunnerTests.test_csv_covers_actual_quantizers_and_stage_assignments) ... ok
+test_cuda_routing_and_synchronization (test_resnet_runner.RunnerTests.test_cuda_routing_and_synchronization) ... ok
+test_evaluation_streams_batches_and_handles_tail (test_resnet_runner.RunnerTests.test_evaluation_streams_batches_and_handles_tail) ... evaluate 2/5
+evaluate 5/5
+{
+  "images": 5,
+  "policy": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "device": "cpu",
+  "batch_size": 2,
+  "seconds": 0.002475207991665229,
+  "teacher_kl": 9.56567668914795,
+  "float_top1_correct": 3,
+  "mixed_top1_correct": 2,
+  "float_top5_correct": 5,
+  "mixed_top5_correct": 5,
+  "float_top1_accuracy": 0.6,
+  "mixed_top1_accuracy": 0.4,
+  "float_top5_accuracy": 1.0,
+  "mixed_top5_accuracy": 1.0
+}
+ok
+test_frontier_candidates_use_search_accuracy_then_kl (test_resnet_runner.RunnerTests.test_frontier_candidates_use_search_accuracy_then_kl) ... ok
+test_imagenet_split_and_original_label_mapping (test_resnet_runner.RunnerTests.test_imagenet_split_and_original_label_mapping) ... ok
+test_manifest_rejects_overlap (test_resnet_runner.RunnerTests.test_manifest_rejects_overlap) ... ok
+test_pareto_dominance_and_equal_coordinates (test_resnet_runner.RunnerTests.test_pareto_dominance_and_equal_coordinates) ... ok
+test_quantizer_half_ties_and_adjacent_values (test_resnet_runner.RunnerTests.test_quantizer_half_ties_and_adjacent_values) ... ok
+test_saved_calibration_is_restored_and_checkpoint_is_checked (test_resnet_runner.RunnerTests.test_saved_calibration_is_restored_and_checkpoint_is_checked) ... Policy predates explicit ties-to-even rounding. Re-evaluation uses corrected rounding; original MPS results may differ.
+Policy predates explicit ties-to-even rounding. Re-evaluation uses corrected rounding; original MPS results may differ.
+ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.712s
+
+OK

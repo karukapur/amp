@@ -1,0 +1,18 @@
+{
+  "original_runner_sha256": "da8be0b6ed3826c47eda41b15b5e993ceeb48b84d4e1644bc7a17bb1ee14314c",
+  "final_source_sha256": {
+    "resnet_benchmark.py": "5144ec7af565b0b6f295a5bcf03ecc72ebb0f8c9f95fa230c4094699efa36a34",
+    "test_resnet_runner.py": "b14391c8d85e950a2502af7a8113cf7a60f476d4813b0ccddb45795f8b06c47a",
+    "audit_pareto.py": "9f76074980b11fb65762fd4cf48094e07252eabc6dff8325a027998d083ed10e",
+    "audit_backend.py": "21ae35baf33a8450e20121bf6d05044bff0424cb29f26ce6073f485d912d7d13"
+  },
+  "verified_rounding_rule": "nearest_ties_to_even",
+  "unit_tests_passed": 9,
+  "mps_half_tie_and_neighbor_values_checked": 196608,
+  "corrected_full_frontier_batch_sizes": [
+    8,
+    16
+  ],
+  "original_files_preserved": true,
+  "no_full_imagenet_or_cuda_or_integer_kernel_validation": true
+}

@@ -1,0 +1,51 @@
+device=cpu, batch_size=16, output=/Users/karankapur/amp/runs/pareto_audit/corrected_selected_cpu
+Policy predates explicit ties-to-even rounding. Re-evaluation uses corrected rounding; original MPS results may differ.
+evaluate 16/500
+Traceback (most recent call last):
+  File "/Users/karankapur/amp/resnet_benchmark.py", line 1050, in <module>
+    {"prepare": prepare, "run": run, "compare": compare, "seed-timing": seed_timing,
+  File "/Users/karankapur/amp/resnet_benchmark.py", line 1053, in <lambda>
+    "evaluate": lambda: evaluate_saved(policy_path),
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/karankapur/amp/resnet_benchmark.py", line 745, in evaluate_saved
+    evaluate_test(model, manifest, policy, device)
+  File "/Users/karankapur/amp/resnet_benchmark.py", line 706, in evaluate_test
+    reference, logits = model(x).cpu(), model(x, policy).cpu()
+                                        ^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/karankapur/amp/resnet_benchmark.py", line 312, in forward
+    x = stage(x, None if policy is None else int(policy[i]))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/karankapur/amp/resnet_benchmark.py", line 287, in forward
+    x = block(x, mode)
+        ^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/karankapur/amp/resnet_benchmark.py", line 273, in forward
+    y = F.relu(self.c1(x, w))
+               ^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/karankapur/amp/resnet_benchmark.py", line 247, in forward
+    y = F.conv2d(x, weight, self.op.bias, self.op.stride, self.op.padding, self.op.dilation, self.op.groups)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

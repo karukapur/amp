@@ -1,0 +1,21 @@
+{
+  "images": 500,
+  "policy": [
+    2,
+    3,
+    0,
+    1
+  ],
+  "device": "mps",
+  "batch_size": 16,
+  "seconds": 10.027266459015664,
+  "teacher_kl": 0.1290358189344406,
+  "float_top1_correct": 365,
+  "mixed_top1_correct": 372,
+  "float_top5_correct": 455,
+  "mixed_top5_correct": 455,
+  "float_top1_accuracy": 0.73,
+  "mixed_top1_accuracy": 0.744,
+  "float_top5_accuracy": 0.91,
+  "mixed_top5_accuracy": 0.91
+}
