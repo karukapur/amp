@@ -10,6 +10,7 @@ import hashlib
 import itertools
 import json
 import math
+import os
 import tarfile
 from pathlib import Path
 from time import perf_counter
@@ -33,6 +34,7 @@ MANIFEST = OUT / "manifest.json"
 IMAGE_ROOT = ROOT
 DEVICE = "auto"
 BATCH_SIZE = 8
+PROFILE_BATCH_SIZE = 4
 
 
 def log(message):
@@ -45,6 +47,8 @@ def select_device(requested=None):
         requested = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
     device = torch.device(requested)
     if device.type == "cuda":
+        if os.environ.get("TORCH_ALLOW_TF32_CUBLAS_OVERRIDE") == "1":
+            raise ValueError("Unset TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1: this run requires an FP32 reference without forced TF32.")
         if not torch.cuda.is_available():
             raise ValueError("CUDA requested but unavailable. Install CUDA-enabled PyTorch and check the NVIDIA driver.")
         index = device.index if device.index is not None else 0
@@ -53,8 +57,14 @@ def select_device(requested=None):
         device = torch.device("cuda", index)
         torch.cuda.set_device(device)
         # Preserve FP32 reference arithmetic rather than silently enabling TF32.
-        torch.backends.cuda.matmul.allow_tf32 = False
-        torch.backends.cudnn.allow_tf32 = False
+        if hasattr(torch.backends, "fp32_precision"):
+            torch.backends.fp32_precision = "ieee"
+            torch.backends.cuda.matmul.fp32_precision = "ieee"
+            torch.backends.cudnn.fp32_precision = "ieee"
+            torch.backends.cudnn.conv.fp32_precision = "ieee"
+        else:
+            torch.backends.cuda.matmul.allow_tf32 = False
+            torch.backends.cudnn.allow_tf32 = False
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
     elif device.type == "mps" and not torch.backends.mps.is_available():
@@ -69,6 +79,36 @@ def sync(device):
         torch.cuda.synchronize(device)
     elif device.type == "mps":
         torch.mps.synchronize()
+
+
+def device_runtime(device, check=False):
+    """Report the selected logical GPU and optionally exercise forward/backward kernels."""
+    device = torch.device(device)
+    result = {"device": str(device), "torch_version": str(torch.__version__)}
+    if device.type != "cuda":
+        return result
+    properties = torch.cuda.get_device_properties(device)
+    result.update(gpu_name=properties.name, compute_capability=[properties.major, properties.minor],
+                  total_memory_bytes=properties.total_memory, torch_cuda_version=torch.version.cuda,
+                  cudnn_version=torch.backends.cudnn.version(), fp32_precision="ieee")
+    if check:
+        try:
+            with torch.enable_grad():
+                x = torch.ones(2, 3, 8, 8, device=device, requires_grad=True)
+                output = F.conv2d(x, torch.ones(4, 3, 3, 3, device=device) / 27)
+                # Exercise quantization, cuDNN, cuBLAS and input-gradient propagation.
+                quantized = output.detach().clamp(-2, 2).mul(127).round().div(127)
+                logits = F.linear(output.flatten(1), torch.ones(5, 144, device=device) / 144)
+                logits.square().mean().backward()
+                if not torch.isfinite(x.grad).all() or not torch.isfinite(quantized).all():
+                    raise RuntimeError("Non-finite CUDA preflight result.")
+                sync(device)
+        except torch.cuda.OutOfMemoryError as exc:
+            raise torch.cuda.OutOfMemoryError(f"CUDA preflight ran out of memory on {device}; free GPU memory before starting.") from exc
+        except RuntimeError as exc:
+            raise RuntimeError(f"CUDA forward/backward preflight failed on {device} ({properties.name}). Check the driver and install a matched CUDA-enabled Torch/Torchvision build supporting this GPU. Original error: {exc}") from exc
+        result["forward_backward_check"] = "passed"
+    return result
 
 
 def prepare():
@@ -129,8 +169,12 @@ def prepare():
 def load_images(rows):
     images = []
     for row in rows:
-        with Image.open(IMAGE_ROOT / row["file"]) as im:
-            images.append(TRANSFORM(im.convert("RGB")))
+        path = IMAGE_ROOT / row["file"]
+        try:
+            with Image.open(path) as im:
+                images.append(TRANSFORM(im.convert("RGB")))
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"Cannot decode image {path}: {exc}") from exc
     return torch.stack(images), torch.tensor([r["label"] for r in rows])
 
 
@@ -158,7 +202,17 @@ def read_manifest():
 def imagenet_manifest(root, counts, seed):
     """Sample disjoint training images; retain all class-organized validation paths."""
     root = root.expanduser().resolve()
-    labels = {v[0]: int(k) for k, v in json.loads((DATA / "imagenet_class_index.json").read_text()).items()}
+    index_path = DATA / "imagenet_class_index.json"
+    if not index_path.is_file():
+        raise ValueError(f"Missing ImageNet label mapping: {index_path}. Copy benchmark_data/imagenet_class_index.json to the remote server alongside the checkpoint.")
+    index = json.loads(index_path.read_text())
+    if not isinstance(index, dict) or set(index) != {str(i) for i in range(1000)} or any(not isinstance(v, list) or len(v) != 2 or not isinstance(v[0], str) for v in index.values()):
+        raise ValueError("ImageNet label mapping must contain the original 1,000 class indices.")
+    labels = {v[0]: int(k) for k, v in index.items()}
+    if len(labels) != 1000:
+        raise ValueError("ImageNet label mapping contains duplicate class folders.")
+    if (root / "train").resolve() == (root / "val").resolve():
+        raise ValueError("ImageNet train and val must be separate directories.")
     directories = {}
     for split in ("train", "val"):
         if not (root / split).is_dir():
@@ -723,6 +777,10 @@ def evaluate_test(model, manifest, policy, device):
 
 def evaluate_saved(policy_path, export_only=False):
     saved = json.loads(policy_path.read_text())
+    if saved.get("granularity") == "operator":
+        import sys
+        from fisher_router import evaluate_saved as evaluate_layer_policy
+        return evaluate_layer_policy(sys.modules[__name__], saved, export_only)
     if "quantization_rounding" not in saved:
         log("Policy predates explicit ties-to-even rounding. Re-evaluation uses corrected rounding; original MPS results may differ.")
     policy = validate_policy(saved["policy"])
@@ -995,11 +1053,12 @@ def run():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("phase", choices=["prepare", "run", "compare", "seed-timing", "search", "evaluate", "export", "frontier"])
+    parser.add_argument("phase", choices=["prepare", "run", "compare", "seed-timing", "search", "evaluate", "export", "frontier", "fisher-frontier"])
     parser.add_argument("--memory-fraction", type=float, help="Budgeted search only; default 0.85.")
     parser.add_argument("--compute-fraction", type=float, help="Budgeted search only; default 0.75.")
     parser.add_argument("--device", default="auto", help="auto prefers CUDA, then MPS, then CPU; or cuda:N")
-    parser.add_argument("--batch-size", type=int, default=8, help="Inference/search batch size; Fisher/local profiling uses 4.")
+    parser.add_argument("--batch-size", type=int, default=8, help="Inference/search and observer calibration batch size.")
+    parser.add_argument("--profile-batch-size", type=int, default=4, help="Fisher-frontier backward microbatch size; lower independently if GPU memory is tight.")
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--manifest", type=Path, help="JSON splits with file paths and original ImageNet labels 0..999.")
@@ -1011,27 +1070,43 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=20261111)
     parser.add_argument("--evaluate", action="store_true", help="After search, evaluate both float and mixed models on all test images.")
     parser.add_argument("--policy", type=Path, help="Saved selected_policy.json for evaluate/export.")
+    parser.add_argument("--router-mode", choices=["transfer", "local", "ilp"], default="transfer", help="Fisher frontier: cross-budget transfers, local-only refinement, or ILP seeds only.")
+    parser.add_argument("--budget-points", type=int, default=8, help="Fisher frontier storage budgets (at least 2).")
+    parser.add_argument("--max-candidates", type=int, default=64, help="Fisher frontier unique evaluation allowance, including seeds and early rejections.")
+    parser.add_argument("--profile-cache", type=Path, help="Reusable Fisher scores, costs and calibration; mismatching fingerprints are rejected.")
     args = parser.parse_args()
     if args.phase == "frontier" and (args.memory_fraction is not None or args.compute_fraction is not None):
         parser.error("frontier explores size/accuracy trade-offs without memory/compute fractions; omit those flags.")
+    if args.phase == "fisher-frontier" and args.memory_fraction is not None:
+        parser.error("fisher-frontier generates storage budgets automatically; omit --memory-fraction.")
+    if args.phase == "fisher-frontier" and (args.budget_points < 2 or args.max_candidates <= 0):
+        parser.error("Fisher frontier requires at least two budgets and a positive candidate allowance.")
     args.memory_fraction = 0.85 if args.memory_fraction is None else args.memory_fraction
     args.compute_fraction = 0.75 if args.compute_fraction is None else args.compute_fraction
-    if args.batch_size <= 0 or not all(math.isfinite(v) and v > 0 for v in (args.memory_fraction, args.compute_fraction)):
+    if args.batch_size <= 0 or args.profile_batch_size <= 0 or not all(math.isfinite(v) and v > 0 for v in (args.memory_fraction, args.compute_fraction)):
         parser.error("Batch size and budget fractions must be positive and finite.")
     if args.imagenet_root and args.manifest:
         parser.error("Choose --imagenet-root or --manifest, not both.")
-    if (args.imagenet_root or args.manifest) and args.phase not in ("search", "evaluate", "export", "frontier"):
-        parser.error("Custom datasets support search/evaluate/export/frontier; run/compare are the original small pilot benchmark.")
+    if (args.imagenet_root or args.manifest) and args.phase not in ("search", "evaluate", "export", "frontier", "fisher-frontier"):
+        parser.error("Custom datasets support search/evaluate/export/frontier/fisher-frontier; run/compare are the original small pilot benchmark.")
     if args.evaluate and args.phase != "search":
         parser.error("--evaluate is for search; use the evaluate phase to evaluate a saved policy.")
     if args.policy and args.phase not in ("evaluate", "export"):
         parser.error("--policy is only used by evaluate/export.")
-    DEVICE, BATCH_SIZE = args.device, args.batch_size
+    DEVICE, BATCH_SIZE, PROFILE_BATCH_SIZE = args.device, args.batch_size, args.profile_batch_size
     CHECKPOINT = args.checkpoint.expanduser().resolve()
     if not CHECKPOINT.is_file():
         parser.error(f"Checkpoint not found: {CHECKPOINT}. No assets are downloaded automatically.")
-    OUT = (args.output_dir or (ROOT / "runs" / "imagenet" if args.imagenet_root else OUT)).expanduser().resolve()
+    default_out = ROOT / "runs" / "fisher_frontier" if args.phase == "fisher-frontier" else (ROOT / "runs" / "imagenet" if args.imagenet_root else OUT)
+    OUT = (args.output_dir or default_out).expanduser().resolve()
     OUT.mkdir(parents=True, exist_ok=True)
+    if args.phase != "prepare":
+        selected_device = select_device()
+        runtime = device_runtime(selected_device, check=True)
+        (OUT / "runtime.json").write_text(json.dumps(runtime, indent=2) + "\n")
+        log(f"device={selected_device}, batch_size={BATCH_SIZE}, output={OUT}")
+        if selected_device.type == "cuda":
+            log(f"CUDA preflight passed: {runtime['gpu_name']}, Torch CUDA {runtime['torch_cuda_version']}.")
     if args.manifest:
         MANIFEST = args.manifest.expanduser().resolve()
         IMAGE_ROOT = (args.image_root or MANIFEST.parent).expanduser().resolve()
@@ -1043,12 +1118,17 @@ if __name__ == "__main__":
     elif args.image_root:
         IMAGE_ROOT = args.image_root.expanduser().resolve()
     torch.manual_seed(args.seed)
-    if args.phase != "prepare":
-        selected_device = select_device()
-        log(f"device={selected_device}, batch_size={BATCH_SIZE}, output={OUT}")
     policy_path = (args.policy or OUT / "selected_policy.json").expanduser().resolve()
+    def fisher_frontier():
+        import sys
+        from fisher_router import frontier as layer_frontier
+        try:
+            return layer_frontier(sys.modules[__name__], args)
+        except torch.cuda.OutOfMemoryError as exc:
+            raise RuntimeError("CUDA out of memory during Fisher frontier. Reduce --profile-batch-size (try 1) for backward profiling, or --batch-size for calibration/search/validation. Use a fresh profile-cache path if changing profiling settings. No CPU fallback was attempted.") from exc
     {"prepare": prepare, "run": run, "compare": compare, "seed-timing": seed_timing,
      "search": lambda: search(args.memory_fraction, args.compute_fraction, args.evaluate),
      "frontier": frontier,
+     "fisher-frontier": fisher_frontier,
      "evaluate": lambda: evaluate_saved(policy_path),
      "export": lambda: evaluate_saved(policy_path, export_only=True)}[args.phase]()
