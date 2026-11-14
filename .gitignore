@@ -1,5 +1,10 @@
 .venv/
 __pycache__/
+*.py[cod]
+runs/
+artifacts/
 resnet_results/
 .DS_Store
-benchmark_data/
+benchmark_data/*
+!benchmark_data/imagenet_class_index.json
+!benchmark_data/README.md

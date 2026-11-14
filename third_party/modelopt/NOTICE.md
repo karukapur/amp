@@ -1,4 +1,4 @@
-The elementwise Fisher scoring functional in `fisher_router.py` is adapted from
+The elementwise Fisher scoring functional in `amp/fisher_router.py` is adapted from
 NVIDIA Model Optimizer, `modelopt/torch/quantization/algorithms.py`, function
 `_get_auto_quantize_score`.
 

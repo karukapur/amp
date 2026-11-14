@@ -1,0 +1,85 @@
+{
+  "date": "2026-11-13",
+  "checks": {
+    "saved_policy_predictions_match": true,
+    "heldout_labels_do_not_change_selection": true,
+    "identical_pilot_profile": true,
+    "identical_pilot_selection": true,
+    "identical_pilot_predictions": true
+  },
+  "unit_tests_passed": 22,
+  "modes": {
+    "local": {
+      "candidates": 24,
+      "policy_image_evaluations": 2392,
+      "transfer_evaluations": 0,
+      "successful_edits": 7,
+      "selected_policies": 8,
+      "timings": {
+        "fingerprint_seconds": 0.024536791985156015,
+        "calibration_seconds": 3.2471600830031093,
+        "profiling_seconds": 13.407562916981988,
+        "cache_read_seconds": 0.0,
+        "shared_profile_build_seconds": 16.654722999985097,
+        "model_load_seconds": 0.41344604099867865,
+        "teacher_search_seconds": 3.0706764580099843,
+        "solver_seconds": 0.22805478997179307,
+        "routing_seconds": 0.03269496190478094,
+        "search_seconds": 100.81305229189456,
+        "final_evaluation_seconds": 186.7035528330016,
+        "total_seconds": 308.345475042006,
+        "total_seconds_charging_shared_profile": 308.345475042006
+      },
+      "frontier": [
+        {
+          "id": "P01",
+          "compression_ratio": 7.872393724649542,
+          "top1_percent": 57.8,
+          "ilp_seed": true
+        },
+        {
+          "id": "P03",
+          "compression_ratio": 6.9137195665207765,
+          "top1_percent": 75.0,
+          "ilp_seed": true
+        }
+      ]
+    },
+    "transfer": {
+      "candidates": 24,
+      "policy_image_evaluations": 2392,
+      "transfer_evaluations": 2,
+      "successful_edits": 7,
+      "selected_policies": 8,
+      "timings": {
+        "fingerprint_seconds": 0.027094958000816405,
+        "calibration_seconds": 0.0,
+        "profiling_seconds": 0.0,
+        "cache_read_seconds": 0.0010971250012516975,
+        "shared_profile_build_seconds": 16.654722999985097,
+        "model_load_seconds": 0.4228255829948466,
+        "teacher_search_seconds": 3.2239987079810817,
+        "solver_seconds": 0.2271457930037286,
+        "routing_seconds": 0.02628416899824515,
+        "search_seconds": 105.88622970995493,
+        "final_evaluation_seconds": 195.92602366700885,
+        "total_seconds": 306.1380067910068,
+        "total_seconds_charging_shared_profile": 322.79272979099187
+      },
+      "frontier": [
+        {
+          "id": "P01",
+          "compression_ratio": 7.872393724649542,
+          "top1_percent": 57.8,
+          "ilp_seed": true
+        },
+        {
+          "id": "P03",
+          "compression_ratio": 6.9137195665207765,
+          "top1_percent": 75.0,
+          "ilp_seed": true
+        }
+      ]
+    }
+  }
+}
