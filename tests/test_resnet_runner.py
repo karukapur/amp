@@ -101,8 +101,8 @@ class RunnerTests(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as tmp:
             for metric, flag, expected_x, expected_y, baseline in (
-                ("compression_ratio", "validation_frontier", [1, 6, 8], [82, 76, 75], 1),
-                ("bitops", "validation_bitops_frontier", [5, 100], [76, 82], 100),
+                ("compression_ratio", "validation_frontier", [6, 8], [76, 75], 1),
+                ("bitops", "validation_bitops_frontier", [5], [76], 100),
             ):
                 path = Path(tmp) / f"{metric}.png"
                 with patch.object(plt, "close"):
@@ -114,6 +114,8 @@ class RunnerTests(unittest.TestCase):
                     self.assertEqual(axis.collections[1].get_offsets()[0, 0], baseline)
                     self.assertIn("GigaBitOps" if metric == "bitops" else "Compression ratio", axis.get_xlabel())
                     self.assertEqual(axis.get_ylabel(), "Top-1 accuracy (%)")
+                    self.assertIn("FP32 baseline (82.00%)", axis.get_legend_handles_labels()[1])
+                    np.testing.assert_array_equal(axis.lines[1].get_ydata(), [82, 82])
                 plt.close(figure)
                 self.assertGreater(path.stat().st_size, 0)
                 self.assertGreater(path.with_suffix(".svg").stat().st_size, 0)

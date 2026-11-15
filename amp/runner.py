@@ -897,11 +897,11 @@ def plot_frontier(rows, path, title, note, flag="validation_frontier", x_metric=
     quantized = rows[1:]
     ax.scatter([x(r) for r in quantized], [r["top1_percent"] for r in quantized],
                color="#718096", s=55, label="Evaluated quantized policies", zorder=3)
-    front = sorted((r for r in rows if r[flag]), key=x)
+    front = sorted((r for r in rows if r["id"] != "FP32" and r[flag]), key=x)
     ax.plot([x(r) for r in front], [r["top1_percent"] for r in front],
             "o-", color="#137c66", linewidth=2, label="Nondominated evaluated points", zorder=4)
     ax.scatter([x(floating)], [floating["top1_percent"]], color="#263248", marker="*", s=160,
-               label="FP32 reference", zorder=5)
+               label=f"FP32 baseline ({floating['top1_percent']:.2f}%)", zorder=5)
     for i, row in enumerate(rows):
         ax.annotate(row["id"], (x(row), row["top1_percent"]),
                     xytext=(5, 9 if i % 2 else -15), textcoords="offset points", fontsize=9)
@@ -967,11 +967,11 @@ def frontier():
     sync(device)
     evaluation_seconds = perf_counter() - start
     accuracy = 100 * correct / len(test)
-    validation_front = pareto_indices([floating_bytes, *size[selected]], -correct)
+    validation_front = {i + 1 for i in pareto_indices(size[selected], -correct[1:])}
     rows = [{"id": "FP32", "policy": "float", "storage_bytes": floating_bytes,
              "compression_ratio": 1.0, "top1_percent": float(accuracy[0]), "correct": int(correct[0]),
              "images": len(test), "bitops_vs_w8a8": "", "search_frontier": False,
-             "validation_frontier": 0 in validation_front, "stage_modes": "FP32"}]
+             "validation_frontier": False, "stage_modes": "FP32"}]
     bounds = {name: float(m.bound.cpu()) for name, m in model.named_modules() if isinstance(m, Activation)}
     digest = hashlib.sha256(CHECKPOINT.read_bytes()).hexdigest()
     for j, policy_id in enumerate(selected, 1):

@@ -42,7 +42,7 @@ class FisherTests(unittest.TestCase):
 
     def test_fisher_matches_direct_per_example_autograd_and_microbatches(self):
         saved = {k: v.clone() for k, v in self.model.state_dict().items()}
-        expected = np.zeros((4, 5))
+        expected = np.zeros((4, len(fr.MODES)))
         for x, label in zip(self.x, self.y):
             inputs, outputs, handles = [], [], []
             def retain_unmodified_output(module, args, output):
@@ -58,7 +58,7 @@ class FisherTests(unittest.TestCase):
             gradients = torch.autograd.grad(F.cross_entropy(logits, label[None]), outputs)
             with torch.no_grad():
                 for i, (op, inp, out, grad) in enumerate(zip(self.model.operators.values(), inputs, outputs, gradients)):
-                    for mode, (w, a) in enumerate(fr.MODES[:4]):
+                    for mode, (w, a) in enumerate(fr.MODES):
                         bound = op.input_quantizer.bound
                         scale = bound / (2 ** (a - 1) - 1)
                         quant_x = (inp.clamp(-bound, bound) / scale).round() * scale
@@ -69,7 +69,7 @@ class FisherTests(unittest.TestCase):
             batches = [(self.x[i:i + batch_size], self.y[i:i + batch_size]) for i in range(0, len(self.x), batch_size)]
             result = fr.fisher_scores(self.model, batches, torch.device("cpu"))
             np.testing.assert_allclose(result, expected, atol=2e-10, rtol=3e-4)
-            self.assertTrue(np.array_equal(result[:, fr.FP32], np.zeros(4)))
+            self.assertEqual(result.shape, (4, 4))
         for name, value in self.model.state_dict().items():
             self.assertTrue(torch.equal(value, saved[name]), name)
         self.assertTrue(all(p.grad is None and not p.requires_grad for p in self.model.parameters()))
@@ -81,19 +81,36 @@ class FisherTests(unittest.TestCase):
         self.assertTrue(all(not op._forward_hooks for op in self.model.operators.values()))
         self.assertEqual(self.model(self.x).shape, (7, 3))
 
-    def test_costs_include_fp32_metadata_and_activation_compute(self):
+    def test_fp32_is_a_reference_not_a_policy_choice(self):
+        self.assertEqual(fr.MODES, ((4, 8), (4, 16), (8, 8), (8, 16)))
+        reference = self.model(self.x).detach()
+        self.model(self.x, (0, 1, 2, 3))
+        self.assertTrue(torch.equal(reference, self.model(self.x)))
+        self.assertTrue(all(op.mode is None for op in self.model.operators.values()))
+        with self.assertRaisesRegex(ValueError, "baseline only"):
+            self.model(self.x, (0, 1, 2, 4))
+        saved = fr.policy_document(self.model, (0, 1, 2, 3), "checkpoint")
+        self.assertTrue(all((a["weight_bits"], a["activation_bits"]) in fr.MODES for a in saved["assignments"].values()))
+        saved["assignments"]["a"] = {"weight_bits": 32, "activation_bits": 32}
+        with self.assertRaisesRegex(ValueError, "FP32.*baseline only"):
+            fr.restore_policy(self.model, saved, "checkpoint")
+
+    def test_quantized_costs_and_fp32_reference_are_separate(self):
         costs = fr.cost_table(self.model)
         for i, op in enumerate(self.model.operators.values()):
             params = op.affine.op.weight.numel()
             biases = op.affine.op.bias.numel()
-            self.assertEqual(costs[i, 4, 0], 4 * (params + biases))
             self.assertEqual(costs[i, 0, 0], (params * 4 + 7) // 8 + 4 * biases + 4 * op.affine.op.weight.shape[0] + 4)
             self.assertEqual(costs[i, 0, 0], costs[i, 1, 0])
             self.assertEqual(costs[i, 1, 1], 2 * costs[i, 0, 1])
-            self.assertEqual(costs[i, 4, 1], 16 * costs[i, 2, 1])
+        self.assertEqual(costs.shape, (4, 4, 2))
+        baseline = fr.fp32_reference_cost(self.model)
+        expected_bytes = sum(4 * (op.affine.op.weight.numel() + op.affine.op.bias.numel()) for op in self.model.operators.values())
+        self.assertEqual(baseline[0], expected_bytes)
+        self.assertEqual(baseline[1], 16 * costs[:, 2, 1].sum())
 
     def test_policy_reload_logits_csv_and_validation(self):
-        policy = (0, 1, 2, 4)
+        policy = (0, 1, 2, 3)
         before = self.model(self.x, policy).detach()
         saved = fr.policy_document(self.model, policy, "checkpoint")
         self.model.restore_bounds({n: 1.0 for n in self.model.operators})
@@ -106,7 +123,8 @@ class FisherTests(unittest.TestCase):
             with path.open() as stream:
                 rows = list(csv.DictReader(stream))
             self.assertEqual(len(rows), 8)
-            self.assertEqual(rows[-1]["notes"], "FP32 bypass")
+            self.assertEqual(rows[-1]["quant_bits"], "16")
+            self.assertTrue(all("bypass" not in r["notes"] for r in rows))
             self.assertEqual(rows[3]["activation_bits"], "16")
         for bad in (dict(saved, checkpoint_sha256="wrong"), dict(saved, graph="wrong"), dict(saved, schema_version=999)):
             with self.assertRaises(ValueError):
@@ -117,7 +135,7 @@ class FisherTests(unittest.TestCase):
             fr.restore_policy(self.model, bad, "checkpoint")
         with self.assertRaises(ValueError):
             self.model.restore_bounds({n: float("nan") for n in self.model.operators})
-        for invalid in ((True, 1, 2, 3), (0, 1, 2), (0, 1, 2, 5)):
+        for invalid in ((True, 1, 2, 3), (0, 1, 2), (0, 1, 2, 4), (0, 1, 2, 5)):
             with self.assertRaises(ValueError):
                 fr.validate_policy(invalid, 4)
 
@@ -125,7 +143,7 @@ class FisherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "cache.json"
             metadata = {"fingerprint": "original"}
-            scores = np.zeros((4, 5))
+            scores = np.zeros((4, len(fr.MODES)))
             costs = fr.cost_table(self.model)
             payload = {"metadata": metadata, "activation_bounds": self.model.bounds(), "scores": scores.tolist(),
                        "costs": costs.tolist(), "operator_macs": {n: op.affine.macs for n, op in self.model.operators.items()}}
@@ -143,15 +161,56 @@ class FisherTests(unittest.TestCase):
             with patch.object(fr, "profile_metadata", return_value=metadata), self.assertRaisesRegex(ValueError, "cost table"):
                 fr.prepare_profile(fake_runner, self.model, {}, "cpu", "hash", path)
 
+    def test_legacy_profile_can_reuse_quantized_scores_without_mutating_the_cache(self):
+        metadata = {"fingerprint": "same", "modes": [list(m) for m in fr.MODES]}
+        quantized = np.arange(16, dtype=float).reshape(4, 4) / 100
+        legacy_cost = np.ones((4, 1, 2))  # The removed reference costs are never allocated.
+        payload = {"metadata": dict(metadata, modes=[*metadata["modes"], [32, 32]]),
+                   "activation_bounds": self.model.bounds(), "scores": np.column_stack((quantized, np.zeros(4))).tolist(),
+                   "costs": np.concatenate((fr.cost_table(self.model), legacy_cost), axis=1).tolist(),
+                   "operator_macs": {n: op.affine.macs for n, op in self.model.operators.items()}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "legacy.json"
+            fr.write_json(path, payload)
+            original = path.read_bytes()
+            fake = SimpleNamespace(log=lambda _: None)
+            with patch.object(fr, "profile_metadata", return_value=metadata), patch.object(fr, "calibrate") as calibration, patch.object(fr, "fisher_scores") as scoring:
+                restored = fr.prepare_profile(fake, self.model, {}, "cpu", "hash", path)
+                self.assertTrue(restored[-1])
+                np.testing.assert_array_equal(restored[0], quantized)
+                self.assertEqual(restored[1].shape, (4, 4, 2))
+                calibration.assert_not_called()
+                scoring.assert_not_called()
+            self.assertEqual(path.read_bytes(), original)
+            with patch.object(fr, "profile_metadata", return_value=dict(metadata, fingerprint="different")), self.assertRaisesRegex(ValueError, "fingerprint mismatch"):
+                fr.prepare_profile(fake, self.model, {}, "cpu", "hash", path)
+            payload["scores"][0][-1] = .1
+            fr.write_json(path, payload)
+            with patch.object(fr, "profile_metadata", return_value=metadata), self.assertRaisesRegex(ValueError, "legacy FP32-reference"):
+                fr.prepare_profile(fake, self.model, {}, "cpu", "hash", path)
+
 
 class RouterTests(unittest.TestCase):
     def tables(self):
-        scores = np.array([[0., 10, 1, 10, 10], [0, 10, 0, 10, 10], [0, 10, 20, 10, 10]])
-        costs = np.tile(np.array([[1, 1], [1, 2], [2, 2], [2, 4], [4, 16]], dtype=float), (3, 1, 1))
+        scores = np.array([[0., 10, 1, 10], [0, 10, 0, 10], [0, 10, 20, 10]])
+        costs = np.tile(np.array([[1, 1], [1, 2], [2, 2], [2, 4]], dtype=float), (3, 1, 1))
         return scores, costs
 
+    def test_solver_and_router_cannot_allocate_a_fifth_format(self):
+        scores, costs = self.tables()
+        legacy_scores = np.column_stack((scores, np.zeros(3)))
+        legacy_costs = np.concatenate((costs, np.ones((3, 1, 2))), axis=1)
+        with self.assertRaisesRegex(ValueError, "baseline only"):
+            fr.solve_seed(legacy_scores, legacy_costs, [100])
+        with self.assertRaisesRegex(ValueError, "quantized formats"):
+            fr.run_search(legacy_scores, legacy_costs, [[100]], [(4, 4, 4)], lambda *_: None)
+        with self.assertRaisesRegex(ValueError, "baseline only"):
+            fr.run_search(scores, costs, [[100]], [(4, 0, 0)], lambda *_: None)
+        for policy in fr.neighbors((0, 1, 2), scores, costs, [100], True):
+            self.assertTrue(all(0 <= mode < 4 for mode in policy))
+
     def test_storage_and_bitops_shortlists_keep_different_tradeoffs(self):
-        policies = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 0)]
+        policies = [(0, 0), (0, 1), (0, 2), (0, 3), (1, 0), (1, 1)]
         values = [([10, 100], 2, .1, True), ([10, 50], 3, .1, True),
                   ([20, 200], 1, .1, True), ([20, 50], 3, .2, True),
                   ([1, 1], 0, .01, False), ([30, 300], 4, .1, True)]
@@ -170,7 +229,7 @@ class RouterTests(unittest.TestCase):
         scores, costs = self.tables()
         scores = rng.random(scores.shape)
         for budget in ([3, 3], [4, 5], [7, 8]):
-            policies = [p for p in itertools.product(range(5), repeat=3) if fr.feasible(fr.policy_cost(costs, p), budget)]
+            policies = [p for p in itertools.product(range(len(fr.MODES)), repeat=3) if fr.feasible(fr.policy_cost(costs, p), budget)]
             expected = min(float(scores[np.arange(3), p].sum()) for p in policies)
             result, status = fr.solve_seed(scores, costs, budget)
             self.assertTrue(status["optimal"])
@@ -182,9 +241,9 @@ class RouterTests(unittest.TestCase):
 
     def test_storage_only_ilp_matches_exhaustive_and_allows_higher_activation_precision(self):
         _, costs = self.tables()
-        scores = np.tile([8., 0, 4, 1, 0], (3, 1))
+        scores = np.tile([8., 0, 4, 1], (3, 1))
         for budget in ([3], [4], [7]):
-            policies = [p for p in itertools.product(range(5), repeat=3)
+            policies = [p for p in itertools.product(range(len(fr.MODES)), repeat=3)
                         if fr.policy_cost(costs, p)[0] <= budget[0]]
             expected = min(float(scores[np.arange(3), p].sum()) for p in policies)
             policy, report = fr.solve_seed(scores, costs, budget)

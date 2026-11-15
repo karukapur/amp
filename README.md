@@ -2,8 +2,9 @@
 
 Search weight-and-activation precision policies for a pretrained ResNet-50 using
 Fisher sensitivity scores, MILP seeds, local refinement and cross-budget edit
-transfers. Each of 54 operators independently chooses W4A8, W4A16, W8A8, W8A16 or
-FP32. Execution uses **FP32 fake quantization**; BitOps and packed storage are
+transfers. Each of 54 operators independently chooses **W4A8, W4A16, W8A8 or
+W8A16**. FP32 is evaluated only as a separate baseline and is never selected for
+an operator in a candidate policy. Execution uses **FP32 fake quantization**; BitOps and packed storage are
 estimates, not measured integer inference speed or resident GPU memory.
 
 ## Setup
@@ -60,8 +61,9 @@ python resnet_benchmark.py fisher-frontier \
 ```
 
 `python -m amp fisher-frontier ...` is an equivalent entry point. Existing
-`python resnet_benchmark.py ...` commands and saved layer/stage policies remain
-supported.
+`python resnet_benchmark.py ...` commands and quantized-only saved layer/stage
+policies remain supported. Older layer policies containing FP32 assignments are
+rejected with an explicit message; rerun search to produce quantized-only policies.
 
 | Parameter | Purpose | Default |
 |---|---|---|
@@ -121,6 +123,14 @@ Each graph marks its own nondominated measured points. The union of both search
 frontiers and the MILP seeds is frozen before held-out evaluation; the resulting
 plots describe that measured shortlist, not a global optimum. Search still sweeps
 storage budgets and has no implicit compute ceiling.
+FP32 appears as a labelled baseline accuracy and horizontal reference line, and
+is excluded from the quantized Pareto frontier. Tables include `accuracy_drop_pp`
+(FP32 accuracy minus policy accuracy, in percentage points).
+
+Compatible older five-column profile caches can be reused without repeating
+profiling: the loader checks all fingerprints and quantized costs, then discards
+only the old zero-score FP32 column in memory. It leaves the original cache
+unchanged. Other fingerprint mismatches still require a fresh cache.
 
 Reload or export a selected policy with the same checkpoint and dataset arguments:
 

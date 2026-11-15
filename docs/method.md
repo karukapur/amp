@@ -9,7 +9,7 @@ Check both pages' logic and controls with `node tests/test_router_walkthrough.cj
 
 The `fisher-frontier` command independently searches all **54 operators**, including
 the stem, projection convolutions and classifier. Each chooses W4A8, W4A16, W8A8,
-W8A16 or FP32. The older commands below keep their original stage-wide behavior.
+or W8A16. FP32 is only the teacher/baseline, outside the searchable formats.
 
 ```sh
 .venv/bin/python resnet_benchmark.py fisher-frontier \
@@ -37,8 +37,8 @@ between all-W4A8 and all-W8A8 size. **There is no default BitOps ceiling.** BitO
 is reported for every policy but does not restrict seeds, local edits or transfers.
 An explicitly supplied `--compute-fraction` opts into a cap relative to all-W8A8;
 the minimum feasible fraction is 0.5 when using this optional constraint. Legacy
-stage-based `search` retains its existing default. FP32 remains an operator choice
-and costs 32 bits. Stored-size estimates include packed weights, floating biases,
+stage-based `search` retains its existing default. FP32 reference cost is computed
+separately at 32 bits and is not an allocation choice. Stored-size estimates include packed weights, floating biases,
 weight scales and activation scales, excluding file/container overhead. BitOps
 counts convolution/linear MACs; it excludes floating residual and quantization work.
 
@@ -103,8 +103,9 @@ Each graph marks its own nondominated evaluated points. `frontier.csv` and
 `validation_bitops_frontier` flags, plus corresponding search-frontier flags.
 The plotted frontiers cover the evaluated shortlist; they are not global optima.
 The additional compute-frontier candidates can increase final validation work,
-without increasing the unique search-candidate allowance. The FP32 reference is also
-considered for nondominance unless an explicit compute cap excludes it.
+without increasing the unique search-candidate allowance. FP32 is displayed only
+as a baseline, with its numeric accuracy; it never joins either quantized frontier.
+`accuracy_drop_pp` reports the accuracy difference from that baseline.
 `frontier.json` records `compute_fraction` and `bitops_budget` as `null` when
 uncapped. `budget_metrics` names the columns in the saved budget arrays: storage
 alone by default, or storage and BitOps when capped. Policy costs always retain

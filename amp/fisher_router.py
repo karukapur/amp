@@ -20,8 +20,12 @@ from torchvision.models import resnet50
 from .runner import Activation, Affine, LOGGER, pareto_indices
 
 
-MODES = ((4, 8), (4, 16), (8, 8), (8, 16), (32, 32))
-FP32 = 4
+MODES = (
+    (4, 8),    # W4A8
+    (4, 16),   # W4A16
+    (8, 8),    # W8A8
+    (8, 16),   # W8A16
+)
 VERSION = 1
 QUANTIZATION = "symmetric_maxabs_per_channel_weights_per_input_activations_ties_even_v1"
 UPSTREAM = "814e6b49ea6752498b5443d49bc8d39a3ca6ad65"
@@ -47,7 +51,7 @@ def validate_policy(policy, count):
     if not isinstance(policy, (list, tuple, np.ndarray)) or len(policy) != count:
         raise ValueError(f"Layer policy requires {count} mode IDs.")
     if any(isinstance(m, (bool, np.bool_)) or not isinstance(m, (int, np.integer)) or not 0 <= m < len(MODES) for m in policy):
-        raise ValueError("Layer mode IDs must be integers from 0 through 4.")
+        raise ValueError(f"Layer mode IDs must be integers from 0 through {len(MODES) - 1}; FP32 is a baseline only.")
     return tuple(int(m) for m in policy)
 
 
@@ -56,10 +60,10 @@ class QuantOperator(nn.Module):
         super().__init__()
         self.input_quantizer = Activation()
         self.affine = Affine(op)
-        self.mode = FP32
+        self.mode = None
 
     def compute(self, x, mode):
-        w, a = (None, None) if mode == FP32 else MODES[mode]
+        w, a = (None, None) if mode is None else MODES[mode]
         return self.affine(self.input_quantizer(x, a), w)
 
     def forward(self, x):
@@ -83,7 +87,7 @@ class LayerModel(nn.Module):
             raise ValueError("No convolution or linear operators found.")
 
     def forward(self, x, policy=None):
-        policy = (FP32,) * len(self.operators) if policy is None else validate_policy(policy, len(self.operators))
+        policy = (None,) * len(self.operators) if policy is None else validate_policy(policy, len(self.operators))
         for operator, mode in zip(self.operators.values(), policy):
             operator.mode = mode
         return self.network(x)
@@ -143,7 +147,7 @@ def fisher_scores(model, batches, device):
                 with torch.no_grad():
                     if not torch.isfinite(gradient).all():
                         raise ValueError("Non-finite output gradient during Fisher profiling.")
-                    for mode in range(FP32):
+                    for mode in range(len(MODES)):
                         difference = module.compute(x, mode) - reference
                         if not torch.isfinite(difference).all():
                             raise ValueError("Non-finite candidate output during Fisher profiling.")
@@ -181,7 +185,7 @@ def fisher_scores(model, batches, device):
 
 
 def cost_table(model):
-    """Estimated packed bytes and MAC BitOps, including FP32 as an actual choice."""
+    """Estimated packed bytes and MAC BitOps for searchable quantized formats."""
     costs = np.zeros((len(model.operators), len(MODES), 2), dtype=np.float64)
     for i, op in enumerate(model.operators.values()):
         affine = op.affine
@@ -189,9 +193,21 @@ def cost_table(model):
             raise ValueError("Run a reference forward before computing costs.")
         bias = 4 * (affine.op.bias.numel() if affine.op.bias is not None else 0)
         for mode, (w, a) in enumerate(MODES):
-            metadata = 0 if mode == FP32 else 4 * affine.op.weight.shape[0] + 4
+            metadata = 4 * affine.op.weight.shape[0] + 4
             costs[i, mode] = (math.ceil(affine.count * w / 8) + bias + metadata, affine.macs * w * a)
     return costs
+
+
+def fp32_reference_cost(model):
+    """Cost of the separate floating-point baseline, outside the policy space."""
+    total = np.zeros(2, dtype=np.float64)
+    for op in model.operators.values():
+        affine = op.affine
+        if affine.macs <= 0:
+            raise ValueError("Run a reference forward before computing costs.")
+        bias_count = affine.op.bias.numel() if affine.op.bias is not None else 0
+        total += (4 * (affine.count + bias_count), affine.macs * 32 * 32)
+    return total
 
 
 def policy_cost(costs, policy):
@@ -205,6 +221,8 @@ def feasible(cost, budget):
 
 def solve_seed(scores, costs, budget):
     layers, formats = scores.shape
+    if formats != len(MODES) or costs.shape != (layers, formats, 2):
+        raise ValueError("Sensitivity/cost tables must contain only the configured quantized formats; FP32 is a baseline only.")
     budget = np.asarray(budget, dtype=float)
     if (budget.ndim != 1 or budget.size not in (1, 2) or not np.isfinite(budget).all()
             or not np.isfinite(scores).all() or np.any(scores < 0) or np.any(budget <= 0)):
@@ -292,6 +310,9 @@ def run_search(scores, costs, budgets, seeds, evaluator, mode="transfer", max_ca
     """No dataset access: evaluator only receives a policy and safe error cutoff."""
     if mode not in ("ilp", "local", "transfer"):
         raise ValueError("Unknown router mode.")
+    if scores.shape[1] != len(MODES) or costs.shape != (*scores.shape, 2):
+        raise ValueError("Search tables must contain only the configured quantized formats.")
+    seeds = [validate_policy(policy, len(scores)) for policy in seeds]
     if max_candidates < len(set(seeds)):
         raise ValueError("Candidate allowance must cover all unique ILP seeds.")
     archive, transfers = {}, []
@@ -479,8 +500,14 @@ def prepare_profile(runner, model, manifest, device, checkpoint_hash, cache_path
         start = perf_counter()
         runner.log(f"[profile] Validating cached sensitivities, activation bounds and costs: {cache_path}.")
         saved = json.loads(cache_path.read_text())
+        legacy_reference_column = False
         if saved["metadata"] != metadata:
-            raise ValueError("Profile cache fingerprint mismatch. Use a different --profile-cache path or remove the obsolete cache.")
+            # Removing the old zero-score reference choice does not alter the four local scores.
+            legacy_metadata = dict(metadata, modes=[*metadata.get("modes", []), [32, 32]])
+            if metadata.get("modes") == [list(m) for m in MODES] and saved["metadata"] == legacy_metadata:
+                legacy_reference_column = True
+            else:
+                raise ValueError("Profile cache fingerprint mismatch. Use a different --profile-cache path or remove the obsolete cache.")
         model.restore_bounds(saved["activation_bounds"])
         if set(saved["operator_macs"]) != set(model.operators):
             raise ValueError("Profile cache operator mismatch.")
@@ -490,9 +517,17 @@ def prepare_profile(runner, model, manifest, device, checkpoint_hash, cache_path
             model.operators[name].affine.macs = count
         scores = np.asarray(saved["scores"], dtype=float)
         costs = cost_table(model)
-        if scores.shape != costs.shape[:2] or not np.isfinite(scores).all() or np.any(scores < 0) or np.any(scores[:, FP32] != 0):
+        cached_costs = np.asarray(saved["costs"], dtype=float)
+        if legacy_reference_column:
+            if (scores.shape != (len(model.operators), len(MODES) + 1)
+                    or cached_costs.shape != (*scores.shape, 2)
+                    or not np.isfinite(cached_costs).all() or np.any(scores[:, -1] != 0)):
+                raise ValueError("Invalid legacy FP32-reference column in cached Fisher table.")
+            scores, cached_costs = scores[:, :-1], cached_costs[:, :-1]
+            runner.log("[profile] Discarded the legacy FP32 reference column in memory; reusing four quantized-format scores. Original cache is unchanged.")
+        if scores.shape != costs.shape[:2] or not np.isfinite(scores).all() or np.any(scores < 0):
             raise ValueError("Invalid cached Fisher table.")
-        if not np.array_equal(costs, np.asarray(saved["costs"])):
+        if not np.array_equal(costs, cached_costs):
             raise ValueError("Cached cost table does not match the model.")
         timings["cache_read_seconds"] = perf_counter() - start
         timings["shared_profile_build_seconds"] = sum(saved.get("original_timings", {}).get(k, 0.0) for k in ("calibration_seconds", "profiling_seconds"))
@@ -538,13 +573,13 @@ def export_policy(model, policy, path):
             rows.append({"name": name if kind == "weight" else name + ".input_quantizer", "kind": kind,
                          "weight_bits": w if kind == "weight" else "", "activation_bits": a,
                          "quant_bits": bits, "input_quantizer": name + ".input_quantizer" if kind == "weight" else "",
-                         "scale": float(op.input_quantizer.bound.cpu()) / (2 ** (a - 1) - 1) if kind != "weight" and mode != FP32 else "",
-                         "quant_min": -(2 ** (bits - 1) - 1) if mode != FP32 else "",
-                         "quant_max": 2 ** (bits - 1) - 1 if mode != FP32 else "",
+                         "scale": float(op.input_quantizer.bound.cpu()) / (2 ** (a - 1) - 1) if kind != "weight" else "",
+                         "quant_min": -(2 ** (bits - 1) - 1),
+                         "quant_max": 2 ** (bits - 1) - 1,
                          "granularity": "per_output_channel" if kind == "weight" else "per_tensor",
                          "parameter_count": op.affine.count if kind == "weight" else "",
                          "compute_dtype": "float32", "bias_bits": 32 if kind == "weight" else "",
-                         "notes": "FP32 bypass" if mode == FP32 else "Symmetric signed; ties to even; fake quantization."})
+                         "notes": "Symmetric signed; ties to even; fake quantization."})
     write_csv(path, rows)
 
 
@@ -567,6 +602,8 @@ def restore_policy(model, saved, checkpoint_hash):
     for name in model.operators:
         assignment = saved["assignments"][name]
         bits = (assignment.get("weight_bits"), assignment.get("activation_bits"))
+        if bits == (32, 32):
+            raise ValueError(f"FP32 assignment for {name} is not a quantized policy format. FP32 is a baseline only; rerun search with the four quantized formats.")
         if any(type(v) is not int for v in bits) or bits not in MODES:
             raise ValueError(f"Unsupported precision for {name}: {bits}")
         policy.append(MODES.index(bits))
@@ -652,6 +689,7 @@ def frontier(runner, args):
     runner.sync(device)
     model_load_seconds = perf_counter() - start
     runner.log(f"[model] Loaded {len(model.operators)} independent operators in {model_load_seconds:.2f}s; weights remain fixed.")
+    runner.log("[model] Search formats: " + ", ".join(f"W{w}A{a}" for w, a in MODES) + "; FP32 is a separate baseline only.")
     cache_path = (args.profile_cache or runner.OUT / "fisher_profile.json").expanduser().resolve()
     scores, costs, metadata, timings, cache_hit = prepare_profile(runner, model, manifest, device, digest, cache_path)
     write_csv(runner.OUT / "sensitivity_costs.csv", [
@@ -716,17 +754,18 @@ def frontier(runner, args):
     del x, labels, teacher, evaluator
     runner.log(f"Selection frozen. Evaluating {len(named)} policies plus FP32 on held-out data.")
     measured, final_seconds = heldout_evaluate(runner, model, manifest["test"], named, device, runner.OUT / "frontier_predictions.csv")
-    floating_cost = policy_cost(costs, (FP32,) * len(scores))
+    floating_cost = fp32_reference_cost(model)
     rows = []
     for name, policy in [("FP32", None), *named.items()]:
         cost = floating_cost if policy is None else policy_cost(costs, policy)
         rows.append({"id": name, "storage_bytes": int(cost[0]), "compression_ratio": float(floating_cost[0] / cost[0]),
                      **measured[name], "bitops": float(cost[1]), "bitops_vs_w8a8": float(cost[1] / high[1]),
+                     "accuracy_drop_pp": float(measured["FP32"]["top1_percent"] - measured[name]["top1_percent"]),
                      "within_bitops_budget": bool(bitops_budget is None or cost[1] <= bitops_budget + 1e-9),
                      "search_frontier": policy in front_policies, "search_bitops_frontier": policy in bitops_front_policies,
                      "ilp_seed": policy in seeds, "validation_frontier": False, "validation_bitops_frontier": False,
                      "policy_file": "" if policy is None else f"policies/{name}.json"})
-    eligible = [i for i, row in enumerate(rows) if row["within_bitops_budget"]]
+    eligible = [i for i, row in enumerate(rows) if row["id"] != "FP32" and row["within_bitops_budget"]]
     for cost_key, flag in (("storage_bytes", "validation_frontier"), ("bitops", "validation_bitops_frontier")):
         for i in runner.pareto_indices([rows[j][cost_key] for j in eligible], [-rows[j]["correct"] for j in eligible]):
             rows[eligible[i]][flag] = True
@@ -735,8 +774,8 @@ def frontier(runner, args):
     timings.update(model_load_seconds=model_load_seconds, teacher_search_seconds=teacher_seconds,
                    solver_seconds=sum(r["seconds"] for r in solver_reports), routing_seconds=search["routing_seconds"],
                    search_seconds=search["search_seconds"], final_evaluation_seconds=final_seconds)
-    plot_note = ("No BitOps ceiling; FP32 is a floating-point reference." if bitops_budget is None else
-                 "Explicit BitOps cap; FP32 is outside the constrained frontier unless marked feasible.")
+    plot_note = ("No BitOps ceiling; FP32 is a baseline only, outside the quantized frontier." if bitops_budget is None else
+                 "Explicit BitOps cap applies to quantized policies; FP32 is a baseline only.")
     runner.log("[plots] Generating accuracy versus storage compression and accuracy versus BitOps graphs.")
     runner.plot_frontier(rows, runner.OUT / "frontier.png", "ResNet-50: Fisher scoring + " + args.router_mode,
                          "Measured shortlist only; estimated storage and BitOps; fake quantization.\n" + plot_note)
@@ -747,6 +786,7 @@ def frontier(runner, args):
     timings["total_seconds"] = perf_counter() - total_start
     timings["total_seconds_charging_shared_profile"] = timings["total_seconds"] + (timings["shared_profile_build_seconds"] if cache_hit else 0.0)
     summary = {"router_mode": args.router_mode, "profile_cache_hit": cache_hit, "profile_cache": str(cache_path),
+               "quantization_formats": [list(m) for m in MODES], "fp32_baseline_only": True,
                "profile_fingerprint": hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest(),
                "device": str(device), "torch_version": str(torch.__version__), "batch_size": runner.BATCH_SIZE,
                "profile_batch_size": getattr(runner, "PROFILE_BATCH_SIZE", 4), "runtime": runner.device_runtime(device),
